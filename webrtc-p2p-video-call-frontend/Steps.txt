@@ -1,0 +1,5 @@
+npx create-react-app webrtc-p2p-video-call-frontend
+cd webrtc-p2p-video-call-frontend
+npm i react-router-dom socket.io-client
+npm i @babel/plugin-proposal-private-property-in-object
+npm i react-player

@@ -1,0 +1,7 @@
+mkdir webrtc-p2p-video-call-backend
+cd webrtc-p2p-video-call-backend
+npm init
+npm install express
+npm i -D nodemon
+npm i dotenv
+npm i socket.io

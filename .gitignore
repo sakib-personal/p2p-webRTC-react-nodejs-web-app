@@ -1,3 +1,6 @@
+# VS Code
+.vscode
+
 # Logs
 logs
 *.log
@@ -39,7 +42,10 @@ bower_components
 build/Release
 
 # Dependency directories
-node_modules/
+webrtc-p2p-video-call-frontend/node_modules/
+webrtc-p2p-video-call-backend/node_modules/
+webrtc-p2p-video-call-frontend/package-lock.json
+webrtc-p2p-video-call-backend/package-lock.json
 jspm_packages/
 
 # Snowpack dependency directory (https://snowpack.dev/)
