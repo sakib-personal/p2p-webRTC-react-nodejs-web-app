@@ -1,0 +1,67 @@
+name: webrtc_p2p_video_call_app
+services:
+  certbot:
+    entrypoint:
+      - /bin/sh
+      - -c
+      - trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;
+    image: certbot/certbot:v2.6.0
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+    networks:
+      default: null
+    restart: always
+    volumes:
+      - type: bind
+        source: H:\Software Development\p2p-webRTC-react-nodejs-web-app\config\certbot\conf
+        target: /etc/letsencrypt
+        bind:
+          create_host_path: true
+      - type: bind
+        source: H:\Software Development\p2p-webRTC-react-nodejs-web-app\config\certbot\www
+        target: /var/www/certbot
+        bind:
+          create_host_path: true
+  web:
+    depends_on:
+      certbot:
+        condition: service_started
+        required: true
+    image: nginx
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+    networks:
+      default: null
+    ports:
+      - mode: ingress
+        target: 80
+        published: "80"
+        protocol: tcp
+      - mode: ingress
+        target: 443
+        published: "443"
+        protocol: tcp
+    restart: always
+    volumes:
+      - type: bind
+        source: H:\Software Development\p2p-webRTC-react-nodejs-web-app\config\nginx
+        target: /etc/nginx/conf.d
+        bind:
+          create_host_path: true
+      - type: bind
+        source: H:\Software Development\p2p-webRTC-react-nodejs-web-app\config\certbot\conf
+        target: /etc/letsencrypt
+        bind:
+          create_host_path: true
+      - type: bind
+        source: H:\Software Development\p2p-webRTC-react-nodejs-web-app\config\certbot\www
+        target: /var/www/certbot
+        bind:
+          create_host_path: true
+networks:
+  default:
+    name: webrtc_p2p_video_call_app_default

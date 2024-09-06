@@ -5,7 +5,7 @@ const app = express();
 
 const port = process.env.PORT || 5000;
 
-app.get("/api/demo", (req, res) => {
+app.get("/demo", (req, res) => {
   res.status(200).json({ message: "Demo API Response." });
 });
 
