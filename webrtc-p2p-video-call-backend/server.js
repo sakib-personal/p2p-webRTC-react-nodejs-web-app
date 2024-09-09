@@ -1,5 +1,6 @@
 const express = require("express");
 const dotenv = require("dotenv").config();
+const { emailToSocketIdMap, socketIdToEmailMap } = require("./chatDetails");
 
 const app = express();
 
@@ -19,8 +20,7 @@ const io = new Server(process.env.SOCKET_PORT, {
   cors: true,
 });
 
-const emailToSocketIdMap = new Map();
-const SocketIdToEmailMap = new Map();
+
 
 io.on("connection", (socket) => {
   console.log(`Socket connected to ${socket.id}!!!`);
@@ -30,7 +30,7 @@ io.on("connection", (socket) => {
     console.log("Room: ", room);
 
     emailToSocketIdMap.set(email, socket.id);
-    SocketIdToEmailMap.set(socket.id, email);
+    socketIdToEmailMap.set(socket.id, email);
 
     io.to(room).emit("room:joined", { email, id: socket.id });
     socket.join(room);
