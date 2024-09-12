@@ -20,8 +20,6 @@ const io = new Server(process.env.SOCKET_PORT, {
   cors: true,
 });
 
-
-
 io.on("connection", (socket) => {
   console.log(`Socket connected to ${socket.id}!!!`);
   socket.on("room:join", (data) => {
@@ -42,12 +40,12 @@ io.on("connection", (socket) => {
     io.to(to).emit("incomming:call", { from: socket.id, offer });
   });
 
-  socket.on("call:accepted", ({ to, answer }) => {
+  socket.on("call:accept", ({ to, answer }) => {
     io.to(to).emit("call:accepted", { from: socket.id, answer });
   });
 
   socket.on("p2p:nego-needed", ({ to, offer }) => {
-    io.to(to).emit("p2p:nego-needed", { from: socket.id, offer });
+    io.to(to).emit("p2p:nego-needed1", { from: socket.id, offer });
   });
 
   socket.on("p2p:nego-answer", ({ to, answer }) => {
