@@ -51,4 +51,8 @@ io.on("connection", (socket) => {
   socket.on("p2p:nego-answer", ({ to, answer }) => {
     io.to(to).emit("p2p:nego-complete", { from: socket.id, answer });
   });
+
+  socket.on("p2p:stream-request", ({ to }) => {
+    io.to(to).emit("p2p:send-stream-request");
+  });
 });

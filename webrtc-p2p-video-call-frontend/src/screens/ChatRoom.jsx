@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import ReactPlayer from "react-player";
 import { useSocket } from "../context/SocketProvider";
 import peer from "../service/peer.js";
+import { delay } from "../utilities/delay.js";
 
 const ChatRoom = () => {
   const socket = useSocket();
@@ -10,10 +11,10 @@ const ChatRoom = () => {
   const [myStream, setMyStream] = useState(null);
   const [remoteUserStream, setRemoteUserStream] = useState(null);
   const [displayAcceptCallBtn, setDisplayAcceptCallBtn] = useState(false);
-  const [isSendStreamsOnAcceptCall, setIsSendStreamsOnAcceptCall] =
-    useState(false);
-  const [incommingCallOffer, setIncommingCallOffer] = useState(null);
-  const [isNegotiator, setIsNegotiator] = useState(false);
+  const isSendStreamsOnAcceptCall = useRef(false);
+  const incommingCallOffer = useRef(null);
+  const isNegotiator = useRef(false);
+  const check = useRef(false);
 
   const handleRoomJoined = useCallback(
     (data) => {
@@ -26,17 +27,18 @@ const ChatRoom = () => {
   );
 
   const handleCallUser = useCallback(async () => {
-    setIsNegotiator(true);
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: true,
       video: true,
     });
 
     const offer = await peer.getOffer();
-    socket.emit("user:call", { to: remoteSocketId, offer });
 
     setMyStream(stream);
-  }, [setIsNegotiator, socket, remoteSocketId, setMyStream]);
+    isNegotiator.current = true;
+    delay(10000);
+    socket.emit("user:call", { to: remoteSocketId, offer });
+  }, [socket, remoteSocketId, setMyStream]);
 
   const handleIncommingCall = useCallback(
     ({ from, offer }) => {
@@ -45,9 +47,9 @@ const ChatRoom = () => {
       setDisplayAcceptCallBtn(true);
 
       setRemoteSocketId(from);
-      setIncommingCallOffer(offer);//to do
+      incommingCallOffer.current = offer;
     },
-    [setDisplayAcceptCallBtn, setIncommingCallOffer, setRemoteSocketId]
+    [setDisplayAcceptCallBtn, setRemoteSocketId]
   );
 
   const sendStreams = useCallback(() => {
@@ -65,41 +67,46 @@ const ChatRoom = () => {
       video: true,
     });
     setMyStream(stream);
-    setIsSendStreamsOnAcceptCall(true);
-  }, [setMyStream, setIsSendStreamsOnAcceptCall]);
+    isSendStreamsOnAcceptCall.current = true;
+    delay(10000);
+  }, [setMyStream]);
 
   const handleAcceptCall = useCallback(async () => {
-    console.log("Accept call Data: ", remoteSocketId, incommingCallOffer);
-    setIsSendStreamsOnAcceptCall(false);
+    console.log(
+      "Accept call Data: ",
+      remoteSocketId,
+      incommingCallOffer.current
+    );
+    isSendStreamsOnAcceptCall.current = false;
 
-    const answer = await peer.getAnswer(incommingCallOffer);
+    const answer = await peer.getAnswer(incommingCallOffer.current);
     socket.emit("call:accept", { to: remoteSocketId, answer });
     sendStreams();
-  }, [socket, incommingCallOffer, sendStreams, remoteSocketId]);
+  }, [socket, remoteSocketId, sendStreams]);
 
   const handleCallAccepted = useCallback(
     async ({ from, answer }) => {
-      console.log("call:accepted: ", from, answer, myStream, answer);
+      console.log("call:accepted: ", from, answer);
       peer.setLocalDescription(answer);
       console.log("Call Accepted!!!");
       sendStreams();
     },
-    [sendStreams, myStream]
+    [sendStreams]
   );
 
   const handleNegotiationNeeded = useCallback(async () => {
     console.log("Negotiation Needed -> ", peer.peer.signalingState);
-    if (!isNegotiator || peer.peer.signalingState !== "stable") return;
-    //if (peer.peer.signalingState !== "stable") return;
+    if (!isNegotiator.current || peer.peer.signalingState !== "stable") return;
+    // if (peer.peer.signalingState !== "stable") return;
     const offer = await peer.getOffer();
     socket.emit("p2p:nego-needed", { offer, to: remoteSocketId });
     console.log("Next to Negotiation Needed -> ", peer.peer.signalingState);
-  }, [isNegotiator, socket, remoteSocketId]);
+  }, [socket, remoteSocketId]);
 
   const handleNegotiationNeededIncommingReq = useCallback(
     async ({ from, offer }) => {
       console.log("Negotiation recieve -> ", peer.peer.signalingState);
-      //if (peer.peer.signalingState !== "have-local-offer") return;
+      // if (peer.peer.signalingState !== "stable") return;
       const answer = await peer.getAnswer(offer);
       console.log("Next to Negotiation recieve -> ", peer.peer.signalingState);
       socket.emit("p2p:nego-answer", { to: from, answer });
@@ -107,25 +114,42 @@ const ChatRoom = () => {
     [socket]
   );
 
-  const handleNegotiationComplete = useCallback(async ({ answer }) => {
-    console.log("Negotiation Done -> ", peer.peer.signalingState);
-    //if (peer.peer.signalingState !== 'have-remote-offer') return;
-    await peer.setLocalDescription(answer);
-    console.log("Next to Negotiation Done -> ", peer.peer.signalingState);
+  const handleNegotiationComplete = useCallback(
+    async ({ from, answer }) => {
+      console.log("Negotiation Done -> ", peer.peer.signalingState);
+      // if (peer.peer.signalingState !== 'stable') return;
+      await peer.setLocalDescription(answer);
+      console.log("Next to Negotiation Done -> ", peer.peer.signalingState);
+      socket.emit("p2p:stream-request", { to: from });
+      if (check.current === false) {
+        handleNegotiationNeeded();
+        check.current = true;
+      }
+    },
+    [socket, handleNegotiationNeeded]
+  );
+
+  const handleSendStreamRequest = useCallback(() => {
+    console.log("Send Stream Request -> ", peer.peer.signalingState);
+    console.log("Send Stream Request -> ", peer.peer.signalingState);
   }, []);
 
   useEffect(() => {
-    if (myStream && isSendStreamsOnAcceptCall) {
+    if (myStream && isSendStreamsOnAcceptCall.current) {
       handleAcceptCall();
     }
-  }, [isSendStreamsOnAcceptCall, handleAcceptCall, myStream]);
+  }, [handleAcceptCall, myStream]);
 
   useEffect(() => {
     peer.peer.addEventListener("track", async (ev) => {
-      const remoteUserStream = ev.streams;
-      setRemoteUserStream(remoteUserStream[0]);
+      console.log("addEventListener -> track");
+      const [remoteUserStream] = ev.streams;
+      console.log("remoteUserStream -> ", remoteUserStream);
+      setRemoteUserStream(remoteUserStream);
     });
-    return () => {};
+    return () => {
+      peer.peer.removeEventListener("track", () => {});
+    };
   }, [setRemoteUserStream]);
 
   useEffect(() => {
@@ -140,25 +164,45 @@ const ChatRoom = () => {
 
   useEffect(() => {
     socket.on("room:joined", handleRoomJoined);
-    socket.on("incomming:call", handleIncommingCall);
-    socket.on("call:accepted", handleCallAccepted);
-    socket.on("p2p:nego-needed1", handleNegotiationNeededIncommingReq);
-    socket.on("p2p:nego-complete", handleNegotiationComplete);
     return () => {
       socket.off("room:joined", handleRoomJoined);
+    };
+  }, [socket, handleRoomJoined]);
+
+  useEffect(() => {
+    socket.on("incomming:call", handleIncommingCall);
+    return () => {
       socket.off("incomming:call", handleIncommingCall);
+    };
+  }, [socket, handleIncommingCall]);
+
+  useEffect(() => {
+    socket.on("call:accepted", handleCallAccepted);
+    return () => {
       socket.off("call:accepted", handleCallAccepted);
+    };
+  }, [socket, handleCallAccepted]);
+
+  useEffect(() => {
+    socket.on("p2p:nego-needed1", handleNegotiationNeededIncommingReq);
+    return () => {
       socket.off("p2p:nego-needed", handleNegotiationNeededIncommingReq);
+    };
+  }, [socket, handleNegotiationNeededIncommingReq]);
+
+  useEffect(() => {
+    socket.on("p2p:nego-complete", handleNegotiationComplete);
+    return () => {
       socket.off("p2p:nego-complete", handleNegotiationComplete);
     };
-  }, [
-    socket,
-    handleRoomJoined,
-    handleIncommingCall,
-    handleCallAccepted,
-    handleNegotiationNeededIncommingReq,
-    handleNegotiationComplete,
-  ]);
+  }, [socket, handleNegotiationComplete]);
+
+  useEffect(() => {
+    socket.on("p2p:send-stream-request", handleSendStreamRequest);
+    return () => {
+      socket.off("p2p:send-stream-request", handleSendStreamRequest);
+    };
+  }, [socket, handleSendStreamRequest]);
 
   return (
     <>
